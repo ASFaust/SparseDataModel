@@ -1,5 +1,6 @@
 import numpy as np
 from collections import defaultdict
+import tqdm
 
 def compute_naive_stats(samples):
     """
@@ -21,11 +22,11 @@ def compute_naive_stats(samples):
     s = np.nanstd(samples_masked, axis=0)
 
     # normalize nonzero entries
-    samples_normalized = np.where(mask, (samples - m) / s, samples)
+    samples_normalized = np.where(mask, (samples - m) / s, 0.0)
 
     # append indicator mask for correlation computation
     samples_extended = np.hstack((samples_normalized, indicator))
-    R_naive = np.cov(samples_extended, rowvar=False)
+    R_naive = np.corrcoef(samples_extended, rowvar=False)
 
     return p, R_naive
 
@@ -50,9 +51,12 @@ def generate_training_data(
     datasets = defaultdict(list)
     counting_bins = np.zeros((200,),dtype = np.int32)  # for keeping track of wether the data is balanced
 
+    pbar = tqdm.tqdm(total=n_draws, desc="Generating draws", unit="draw")
+
     for draw in range(n_draws):
         random_seed = np.random.randint(0, 2**31 - 1)
-        print(f"\rGenerating draw {draw + 1}/{n_draws}...", end='', flush=True)
+        pbar.update(1)
+        #print(f"\rGenerating draw {draw + 1}/{n_draws}...", end='', flush=True)
         gen = SparseDataGenerator(n_dims, seed=(seed or random_seed) + draw)
         corr_true = gen.corr
         mu_true = gen.nonzero_means
@@ -133,8 +137,8 @@ if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True)
     data = generate_training_data(
         n_dims=2,
-        n_samples_per_draw=100_000,
-        n_draws=1000,
+        n_samples_per_draw=1_000_000,
+        n_draws=10000,
         seed=None
     )
     # The returned data is a dictionary with keys:

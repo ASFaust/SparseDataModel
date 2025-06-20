@@ -25,7 +25,7 @@ class MLPRegressor(nn.Module):
         return self.out(h2)
 
 # Training function
-def train_model(name, dataset, input_dim, epochs=100, batch_size=128):
+def train_model(name, dataset, input_dim, epochs=400, batch_size=128):
     X, y = zip(*dataset)
     X = torch.tensor(X, dtype=torch.float32)
     y = torch.tensor(y, dtype=torch.float32).view(-1, 1)
@@ -34,18 +34,23 @@ def train_model(name, dataset, input_dim, epochs=100, batch_size=128):
     loader = DataLoader(ds, batch_size=batch_size, shuffle=True)
 
     model = MLPRegressor(input_dim)
-    optimizer = optim.Adam(model.parameters(), lr=1e-4)
-    loss_fn = nn.MSELoss()
-
+    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    ma_loss = 0.0
+    ma_abs_diff = 0.0
     for epoch in range(epochs):
         for xb, yb in loader:
             optimizer.zero_grad()
-            loss = loss_fn(model(xb), yb)
-            print(f"\r{name} Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}", end="")
+            out = model(xb)
+            loss = (out - yb).pow(2).mean()
+            mean_abs_diff = (out - yb).abs().mean()
+            ma_abs_diff = 0.99 * ma_abs_diff + 0.01 * mean_abs_diff.item() if epoch > 0 else mean_abs_diff.item()
+            #print(f"\r{name} Epoch {epoch+1}/{epochs}, Loss: {loss.item():.4f}", end="")
             loss.backward()
             optimizer.step()
+            ma_loss = 0.99 * ma_loss + 0.01 * loss.item() if epoch > 0 else loss.item()
+        print(f"\r{name} Epoch {epoch+1}/{epochs}, Loss: {ma_loss:.4f}, mean abs diff: {ma_abs_diff:.4f}", end="")
 
-    print(f"{name}: Final training loss = {loss.item():.4f}")
+    print(f"\n{name} training complete.")
     return model
 
 # Train all 6 estimators
