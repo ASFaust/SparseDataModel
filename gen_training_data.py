@@ -16,31 +16,24 @@ def compute_naive_stats(samples):
     p = indicator.mean(axis=0)
     m = np.zeros(n_dims)
     s = np.zeros(n_dims)
-    sk = np.zeros(n_dims)
-    medians = np.zeros(n_dims)
-    upper_quantile = np.zeros(n_dims)
-    lower_quantile = np.zeros(n_dims)
 
     for i in range(n_dims):
         xi = samples[:, i]
         nz = xi[xi != 0]
-        #if nz.size > 1:
         m[i] = nz.mean()
         s[i] = nz.std()
-        # for skewness, we use the proportion of values greater than the mean
-        sk[i] = (np.mean(nz > m[i]) - 0.5) if nz.size > 0 else 0.0
-        #medians[i] = np.median(nz) if nz.size > 0 else 0.0
-        #upper_quantile[i] = np.quantile(nz, 0.75) if nz.size > 0 else 0.0
-        #lower_quantile[i] = np.quantile(nz, 0.25) if nz.size > 0 else 0.0
+
+    samples_normalized = samples.copy()
+
+    for i in range(n_dims):
+        nz = samples[:, i] != 0
+        samples_normalized[nz, i] = (samples[nz, i] - m[i]) / s[i]
 
     # we need to extend samples to include 2*ndim: include an indicator dim for nonzero
-    samples_extended = np.hstack((samples, indicator))
+    samples_extended = np.hstack((samples_normalized, indicator))
     R_naive = np.corrcoef(samples_extended, rowvar=False)
-    # stack the statistical values (p, m, s, sk, median, upper_quantile, lower_quantile)
-    # and return values, R_naive
-    values = np.vstack((p, m, s, sk)).T #, medians, upper_quantile, lower_quantile)).T
 
-    return values, R_naive
+    return p, R_naive
 
 def generate_training_data(
     n_dims,
@@ -61,16 +54,53 @@ def generate_training_data(
     from sparse_data_model import SparseDataGenerator  # adjust as needed
 
     datasets = defaultdict(list)
+    counting_bins = np.zeros((200,),dtype = np.int32)  # for keeping track of wether the data is balanced
 
     for draw in range(n_draws):
+        random_seed = np.random.randint(0, 2**31 - 1)
         print(f"\rGenerating draw {draw + 1}/{n_draws}...", end='', flush=True)
-        gen = SparseDataGenerator(n_dims, seed=(seed or 0) + draw)
+        gen = SparseDataGenerator(n_dims, seed=(seed or random_seed) + draw)
         corr_true = gen.corr
         mu_true = gen.nonzero_means
         sigma_true = gen.nonzero_stds
         theta_true = gen.sparsity_thresholds
+        #now plop all off diagonal correlation values into the bins
+        for i in range(n_dims):
+            for j in range(n_dims):
+                if i == j:
+                    continue
+                corr_values = [
+                    corr_true[i, j],
+                    corr_true[n_dims + i, n_dims + j],
+                    corr_true[i, n_dims + j]
+                ]
+                for corr_value in corr_values:
+                    bin_index = int((corr_value + 1.0) * 100.0)
+                    counting_bins[bin_index] += 1
+
 
         samples = gen(n_samples_per_draw)
+        if draw == 0:
+            #samples has shape (n_samples_per_draw, n_dims)
+            data = samples[:,0]
+            nonzero_mask = data != 0
+            nonzero_data = data[nonzero_mask]
+            estimated_mean = np.mean(nonzero_data)
+            estimated_std = np.std(nonzero_data)
+            true_mean = mu_true[0]
+            true_std = sigma_true[0]
+            import matplotlib.pyplot as plt
+            plt.hist(nonzero_data, bins=50, density=True)
+            #also plot the 2 normal distributions
+            x = np.linspace(min(nonzero_data), max(nonzero_data), 100)
+            plt.plot(x, (1 / (estimated_std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - estimated_mean) / estimated_std) ** 2), label='Estimated Normal')
+            plt.plot(x, (1 / (true_std * np.sqrt(2 * np.pi))) * np.exp(-0.5 * ((x - true_mean) / true_std) ** 2), label='True Normal')
+            plt.legend()
+            plt.title(f"Draw {draw + 1} - Nonzero Data Distribution")
+            plt.xlabel("Value")
+            plt.ylabel("Density")
+            plt.savefig(f'draw_{draw + 1}_histogram.png')
+
         values, R_naive = compute_naive_stats(samples)
 
         # per-pair features for corr estimators
@@ -78,46 +108,43 @@ def generate_training_data(
             for j in range(n_dims):
                 if i == j:
                     continue
-                #theoretically, we dont need the lower triangle, but since this is training data,
-                #the symmtetric property of the correlation matrix is not known to the model,
-                #so it needs to be represented in the training data.
-
-                # then for each pair i≠j:
                 x = [
                     R_naive[i, j],
                     R_naive[n_dims+i, n_dims+j],
                     R_naive[n_dims+i, j],
                     R_naive[i, n_dims+j],
-                    values[i, 0],  values[j, 0],  # p[i], p[j]
-                    values[i, 1],  values[j, 1],  # m[i], m[j]
-                    values[i, 2],  values[j, 2],  # s[i], s[j]
-                    values[i, 3],  values[j, 3],  # sk[i], sk[j]
-                    #values[i, 4],  values[j, 4],  # median[i], median[j]
-                    #values[i, 5],  values[j, 5],  # upper_quantile[i], upper_quantile[j]
-                    #values[i, 6],  values[j, 6],  # lower_quantile[i], lower_quantile[j]
+                    values[i],  values[j],  # p[i], p[j]
                 ]
                 x = np.array(x)
                 datasets['corr_bb'].append((x, corr_true[i, j]))
                 datasets['corr_gg'].append((x, corr_true[n_dims+i, n_dims+j]))
-                datasets['corr_gb'].append((x, corr_true[n_dims+i, j]))
+                datasets['corr_gb'].append((x, corr_true[n_dims+i, j])) #fine with i!=j, because if i==j, then corr_true[n_dims+i, j] is 0.0
 
         # per-variable features for mean/std/threshold estimators
         for i in range(n_dims):
-            x = values[i]
-            datasets['mean'].append((x, mu_true[i]))
-            datasets['std'].append((x, sigma_true[i]))
-            datasets['threshold'].append((x, theta_true[i]))
+            datasets['threshold'].append((values[i:i+1], theta_true[i]))
+    #plot the counting bins
+    print("\nCounting bins for correlation values:")
+    import matplotlib.pyplot as plt
+    #clear the figure
+    plt.figure(figsize=(10, 5))
+    plt.bar(np.arange(-1, 1, 0.01), counting_bins, width=0.01)
+    plt.title('Counting Bins for Correlation Values')
+
+    plt.xlabel('Correlation Value')
+    plt.ylabel('Count')
+    plt.savefig('counting_bins.png')
 
     return datasets
 
-
 # Example usage:
 if __name__ == "__main__":
+    np.set_printoptions(precision=3, suppress=True)
     data = generate_training_data(
-        n_dims=2,
-        n_samples_per_draw=50_000,
-        n_draws=5000,
-        seed=1294
+        n_dims=3,
+        n_samples_per_draw=100_000,
+        n_draws=10000,
+        seed=None
     )
     # The returned data is a dictionary with keys:
     # 'corr_bb', 'corr_gb', 'corr_gg', 'mean', 'std', 'threshold'

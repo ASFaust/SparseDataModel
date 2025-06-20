@@ -1,24 +1,14 @@
 import numpy as np
 
-def random_correlation_matrix(n, seed=None):
-    """
-    Generates a random correlation matrix of size n x n.
-    The matrix is symmetric, positive semi-definite, with 1s on the diagonal.
-    """
-    if seed is not None:
-        np.random.seed(seed)
-    rng = np.random.default_rng(seed)
-
-    # Step 1: generate a random matrix
-    A = rng.standard_normal((n, n))
-
-    # Step 2: create a covariance matrix (symmetric and PSD)
-    cov = np.dot(A, A.T)
-
-    # Step 3: normalize to get correlation matrix
-    D_inv = np.diag(1.0 / np.sqrt(np.diag(cov)))
-    corr = D_inv @ cov @ D_inv
-
+def nearest_correlation_matrix(A):
+    """Returns the nearest symmetric positive semi-definite matrix to A."""
+    B = (A + A.T) / 2
+    vals, vecs = np.linalg.eigh(B)
+    vals = np.clip(vals, 1e-12, None)  # clamp small/negative eigenvalues
+    ret = vecs @ np.diag(vals) @ vecs.T
+    #normalize to get correlation matrix
+    D_inv = np.diag(1.0 / np.sqrt(np.diag(ret)))
+    corr = D_inv @ ret @ D_inv
     return corr
 
 
@@ -34,11 +24,28 @@ class SparseDataGenerator:
         we first generate a random 2n x 2n correlation matrix
         """
         self.n_dims = n_dims
-        self.corr = random_correlation_matrix(n_dims * 2, seed=seed)
-        #zero out self correlation between the values and its own mask
+        self.beta = 0.5 #np.random.rand() + 1e-6
+        self.corr = np.random.beta(self.beta, self.beta, size=(n_dims * 2, n_dims * 2)) * 2.0 - 1.0
         for i in range(n_dims):
             self.corr[i, i + n_dims] = 0.0
             self.corr[i + n_dims, i] = 0.0
+            self.corr[i, i] = 1.0  # ensure diagonal is 1
+        self.corr = nearest_correlation_matrix(self.corr)
+        #zero out self correlation between the values and its own mask
+        for j in range(10):
+            for i in range(n_dims):
+                self.corr[i, i + n_dims] = 0.0
+                self.corr[i + n_dims, i] = 0.0
+                self.corr[i,i] = 1.0  # ensure diagonal is 1
+            #ensure the correlation matrix is positive semi-definite
+            self.corr = nearest_correlation_matrix(self.corr)
+        #print(f"Generated correlation matrix:\n{self.corr}")
+
+        #print the just zeroed entries to ensure they are zero
+        #for i in range(n_dims):
+        #    print(f"Zeroed correlation entries: {self.corr[i, i + n_dims]}, {self.corr[i + n_dims, i]}")
+        #    print(f"Diagonal entry: {self.corr[i, i]}")
+        #looks good!
 
         self.nonzero_means = (np.random.rand(n_dims) * 2.0 - 1.0) * 2.0
         self.nonzero_stds = (np.random.rand(n_dims) * 2.0) * 2.0

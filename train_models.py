@@ -25,7 +25,7 @@ class MLPRegressor(nn.Module):
         return self.out(h2)
 
 # Training function
-def train_model(name, dataset, input_dim, epochs=10, batch_size=64):
+def train_model(name, dataset, input_dim, epochs=100, batch_size=128):
     X, y = zip(*dataset)
     X = torch.tensor(X, dtype=torch.float32)
     y = torch.tensor(y, dtype=torch.float32).view(-1, 1)
@@ -34,7 +34,7 @@ def train_model(name, dataset, input_dim, epochs=10, batch_size=64):
     loader = DataLoader(ds, batch_size=batch_size, shuffle=True)
 
     model = MLPRegressor(input_dim)
-    optimizer = optim.Adam(model.parameters(), lr=1e-3)
+    optimizer = optim.Adam(model.parameters(), lr=1e-4)
     loss_fn = nn.MSELoss()
 
     for epoch in range(epochs):
