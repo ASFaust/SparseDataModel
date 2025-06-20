@@ -37,3 +37,9 @@ training_data_01.pkl was created with:
         n_draws=10000,
         seed=None
     )
+
+
+#TODO:
+* data must be better generated: sweep through boxes, 3d sampling to enable more complex data which is still SPD
+Do that by generating a 6d grid for the data points, then set the values of the correlation matrix to those points, and use a 3rd dimension
+to make the correlation matrix SPD again by iteratively applying nearest_correlation_matrix() on the correlation matrix
