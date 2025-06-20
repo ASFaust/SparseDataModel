@@ -1,0 +1,15 @@
+#python stuff
+*.py[cod]
+__pycache__/
+# pycharm + jetbrains stuff
+.idea/
+# vscode stuff
+.vscode/
+# macOS stuff
+.DS_Store
+# windows stuff
+Thumbs.db
+# linux stuff
+*~
+# logs
+*.log
