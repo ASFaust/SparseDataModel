@@ -1,5 +1,4 @@
 import numpy as np
-from scipy.stats import skew
 from collections import defaultdict
 
 def compute_naive_stats(samples):
@@ -21,16 +20,15 @@ def compute_naive_stats(samples):
     for i in range(n_dims):
         xi = samples[:, i]
         nz = xi[xi != 0]
-        if nz.size > 1:
-            m[i] = nz.mean()
-            s[i] = nz.std(ddof=0)
-            sk[i] = skew(nz)
-        # else leave m, s, sk at zero
+        #if nz.size > 1:
+        m[i] = nz.mean()
+        s[i] = nz.std()
+        # for skewness, we use the proportion of values greater than the mean
+        sk[i] = (np.mean(nz > m[i]) - 0.5) if nz.size > 0 else 0.0
 
-    # avoid division by zero when standardizing for corr
-    sane = np.where(s == 0, 1.0, s)
-    X = (samples - m) / sane
-    R_naive = np.corrcoef(X, rowvar=False)
+    # we need to extend samples to include 2*ndim: include an indicator dim for nonzero
+    samples_extended = np.hstack((samples, (samples != 0).astype(float)))
+    R_naive = np.corrcoef(samples_extended, rowvar=False)
     return p, m, s, sk, R_naive
 
 def generate_training_data(
@@ -64,14 +62,6 @@ def generate_training_data(
         samples = gen(n_samples_per_draw)
         p, m, s, sk, R_naive = compute_naive_stats(samples)
 
-        mean_corr = np.zeros(n_dims)
-        std_corr = np.zeros(n_dims)
-        for v in range(n_dims):
-            others = [k for k in range(n_dims) if k != v]
-            row = R_naive[v, others]
-            mean_corr[v] = np.nanmean(row)
-            std_corr[v] = np.nanstd(row)
-
         # per-pair features for corr estimators
         for i in range(n_dims):
             for j in range(n_dims):
@@ -79,37 +69,25 @@ def generate_training_data(
                     continue
 
                 # then for each pair i≠j:
-                x_base = [
+                x = [
                     R_naive[i, j],
+                    R_naive[n_dims+i, n_dims+j],
+                    R_naive[n_dims+i, j],
+                    R_naive[i, n_dims+j],
                     p[i], p[j],
                     m[i], m[j],
                     s[i], s[j],
                     sk[i], sk[j],
                 ]
-
-                x = np.array(x_base + [
-                    mean_corr[i], std_corr[i],
-                    mean_corr[j], std_corr[j],
-                ])
+                x = np.array(x)
                 datasets['corr_bb'].append((x, corr_true[i, j]))
                 datasets['corr_gg'].append((x, corr_true[n_dims+i, n_dims+j]))
                 datasets['corr_gb'].append((x, corr_true[n_dims+i, j]))
 
-        # compute per-variable mean/std of off-diagonal correlations
-        mean_corr = np.zeros(n_dims)
-        std_corr  = np.zeros(n_dims)
-        for i in range(n_dims):
-            others = [j for j in range(n_dims) if j != i]
-            row = R_naive[i, others]
-            mean_corr[i] = np.nanmean(row)
-            std_corr[i]  = np.nanstd(row)
-
         # per-variable features for mean/std/threshold estimators
         for i in range(n_dims):
-            x = np.concatenate([
-                [p[i]],
-                [m[i], s[i], sk[i]],
-                [mean_corr[i], std_corr[i]]
+            x = np.array([
+                p[i], m[i], s[i], sk[i]
             ])
             datasets['mean'].append((x, mu_true[i]))
             datasets['std'].append((x, sigma_true[i]))
@@ -121,10 +99,10 @@ def generate_training_data(
 # Example usage:
 if __name__ == "__main__":
     data = generate_training_data(
-        n_dims=10,
-        n_samples_per_draw=100_000,
-        n_draws=1000,
-        seed=42
+        n_dims=2,
+        n_samples_per_draw=50_000,
+        n_draws=100,
+        seed=1294
     )
     # The returned data is a dictionary with keys:
     # 'corr_bb', 'corr_gb', 'corr_gg', 'mean', 'std', 'threshold'

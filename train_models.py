@@ -10,18 +10,19 @@ with open('training_data.pkl', 'rb') as f:
 
 # Define a small MLP regressor
 class MLPRegressor(nn.Module):
-    def __init__(self, input_dim, hidden=16):
+    def __init__(self, input_dim, hidden=32):
         super().__init__()
-        self.model = nn.Sequential(
-            nn.Linear(input_dim, hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, hidden),
-            nn.SiLU(),
-            nn.Linear(hidden, 1)
-        )
+        self.l1 = nn.Linear(input_dim, hidden)
+        self.att1 = nn.Linear(input_dim, hidden)
+        self.l2 = nn.Linear(hidden, hidden)
+        self.att2 = nn.Linear(hidden, hidden)
+        self.out = nn.Linear(hidden, 1)
+        self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
-        return self.model(x)
+        h1 = self.sigmoid(self.att1(x)) * self.l1(x)
+        h2 = self.att2(self.sigmoid(h1)) * self.l2(h1)
+        return self.out(h2)
 
 # Training function
 def train_model(name, dataset, input_dim, epochs=10, batch_size=64):
