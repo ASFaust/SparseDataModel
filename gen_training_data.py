@@ -3,35 +3,29 @@ from collections import defaultdict
 
 def compute_naive_stats(samples):
     """
-    samples: (n_samples, n_dims) observed (zero-inflated) data
-    Returns:
-      p: shape (n_dims,) nonzero probability
-      m: shape (n_dims,) mean of nonzeros
-      s: shape (n_dims,) std of nonzeros
-      sk: shape (n_dims,) skewness of nonzeros
-      R_naive: (n_dims, n_dims) Pearson corr of observed data
+    Vectorized version of naive stats computation.
     """
     n_samples, n_dims = samples.shape
     indicator = (samples != 0).astype(float)
     p = indicator.mean(axis=0)
-    m = np.zeros(n_dims)
-    s = np.zeros(n_dims)
 
-    for i in range(n_dims):
-        xi = samples[:, i]
-        nz = xi[xi != 0]
-        m[i] = nz.mean()
-        s[i] = nz.std()
+    # mask: (n_samples, n_dims), True where nonzero
+    mask = indicator.astype(bool)
 
-    samples_normalized = samples.copy()
+    # set zeros to NaN temporarily for mean/std computation
+    samples_masked = samples.copy()
+    samples_masked[~mask] = np.nan
 
-    for i in range(n_dims):
-        nz = samples[:, i] != 0
-        samples_normalized[nz, i] = (samples[nz, i] - m[i]) / s[i]
+    # compute mean and std over nonzero values using nanmean/nanstd
+    m = np.nanmean(samples_masked, axis=0)
+    s = np.nanstd(samples_masked, axis=0)
 
-    # we need to extend samples to include 2*ndim: include an indicator dim for nonzero
+    # normalize nonzero entries
+    samples_normalized = np.where(mask, (samples - m) / s, samples)
+
+    # append indicator mask for correlation computation
     samples_extended = np.hstack((samples_normalized, indicator))
-    R_naive = np.corrcoef(samples_extended, rowvar=False)
+    R_naive = np.cov(samples_extended, rowvar=False)
 
     return p, R_naive
 
@@ -109,7 +103,7 @@ def generate_training_data(
                 if i == j:
                     continue
                 x = [
-                    R_naive[i, j],
+                    R_naive[i,j],
                     R_naive[n_dims+i, n_dims+j],
                     R_naive[n_dims+i, j],
                     R_naive[i, n_dims+j],
@@ -120,9 +114,6 @@ def generate_training_data(
                 datasets['corr_gg'].append((x, corr_true[n_dims+i, n_dims+j]))
                 datasets['corr_gb'].append((x, corr_true[n_dims+i, j])) #fine with i!=j, because if i==j, then corr_true[n_dims+i, j] is 0.0
 
-        # per-variable features for mean/std/threshold estimators
-        for i in range(n_dims):
-            datasets['threshold'].append((values[i:i+1], theta_true[i]))
     #plot the counting bins
     print("\nCounting bins for correlation values:")
     import matplotlib.pyplot as plt
@@ -141,9 +132,9 @@ def generate_training_data(
 if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True)
     data = generate_training_data(
-        n_dims=3,
+        n_dims=2,
         n_samples_per_draw=100_000,
-        n_draws=10000,
+        n_draws=1000,
         seed=None
     )
     # The returned data is a dictionary with keys:
