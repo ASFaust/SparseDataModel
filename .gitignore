@@ -13,3 +13,5 @@ Thumbs.db
 *~
 # logs
 *.log
+# pickle files
+*.pkl
