@@ -28,3 +28,12 @@ The correction functions are empirically derived from sampled data, and are not 
 
 there's also correction functions for the mean and std of the gaussians
 which are applied separately
+
+
+training_data_01.pkl was created with:
+    data = generate_training_data(
+        n_dims=2,
+        n_samples_per_draw=1_000_000,
+        n_draws=10000,
+        seed=None
+    )

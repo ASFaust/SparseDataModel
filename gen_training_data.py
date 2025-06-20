@@ -136,9 +136,9 @@ def generate_training_data(
 if __name__ == "__main__":
     np.set_printoptions(precision=3, suppress=True)
     data = generate_training_data(
-        n_dims=2,
+        n_dims=10,
         n_samples_per_draw=1_000_000,
-        n_draws=10000,
+        n_draws=100,
         seed=None
     )
     # The returned data is a dictionary with keys:

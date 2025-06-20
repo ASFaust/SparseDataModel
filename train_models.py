@@ -4,11 +4,11 @@ import torch.optim as optim
 from torch.utils.data import DataLoader, TensorDataset
 import pickle
 
-# Load training data
-with open('training_data.pkl', 'rb') as f:
-    data = pickle.load(f)
+
 
 # Define a small MLP regressor
+# All estimators are now for the correlation matrix, so we can use tanh activation for the output
+# since correlation values are in the range [-1, 1].
 class MLPRegressor(nn.Module):
     def __init__(self, input_dim, hidden=32):
         super().__init__()
@@ -18,11 +18,12 @@ class MLPRegressor(nn.Module):
         self.att2 = nn.Linear(hidden, hidden)
         self.out = nn.Linear(hidden, 1)
         self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
 
     def forward(self, x):
         h1 = self.sigmoid(self.att1(x)) * self.l1(x)
         h2 = self.att2(self.sigmoid(h1)) * self.l2(h1)
-        return self.out(h2)
+        return self.tanh(self.out(h2))
 
 # Training function
 def train_model(name, dataset, input_dim, epochs=400, batch_size=128):
@@ -53,11 +54,16 @@ def train_model(name, dataset, input_dim, epochs=400, batch_size=128):
     print(f"\n{name} training complete.")
     return model
 
-# Train all 6 estimators
-trained_models = {}
-for key in data:
-    dim = len(data[key][0][0])
-    trained_models[key] = train_model(key, data[key], input_dim=dim)
+if __name__ == "__main__":
+    # Load training data
+    with open('training_data.pkl', 'rb') as f:
+        data = pickle.load(f)
 
-# Optional: Save models
-torch.save(trained_models, 'trained_models.pt')
+    # Train all 6 estimators
+    trained_models = {}
+    for key in data:
+        dim = len(data[key][0][0])
+        trained_models[key] = train_model(key, data[key], input_dim=dim)
+
+    # Optional: Save models
+    torch.save(trained_models, 'trained_models.pt')
