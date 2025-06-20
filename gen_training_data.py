@@ -12,10 +12,14 @@ def compute_naive_stats(samples):
       R_naive: (n_dims, n_dims) Pearson corr of observed data
     """
     n_samples, n_dims = samples.shape
-    p = (samples != 0).mean(axis=0)
+    indicator = (samples != 0).astype(float)
+    p = indicator.mean(axis=0)
     m = np.zeros(n_dims)
     s = np.zeros(n_dims)
     sk = np.zeros(n_dims)
+    medians = np.zeros(n_dims)
+    upper_quantile = np.zeros(n_dims)
+    lower_quantile = np.zeros(n_dims)
 
     for i in range(n_dims):
         xi = samples[:, i]
@@ -25,11 +29,18 @@ def compute_naive_stats(samples):
         s[i] = nz.std()
         # for skewness, we use the proportion of values greater than the mean
         sk[i] = (np.mean(nz > m[i]) - 0.5) if nz.size > 0 else 0.0
+        #medians[i] = np.median(nz) if nz.size > 0 else 0.0
+        #upper_quantile[i] = np.quantile(nz, 0.75) if nz.size > 0 else 0.0
+        #lower_quantile[i] = np.quantile(nz, 0.25) if nz.size > 0 else 0.0
 
     # we need to extend samples to include 2*ndim: include an indicator dim for nonzero
-    samples_extended = np.hstack((samples, (samples != 0).astype(float)))
+    samples_extended = np.hstack((samples, indicator))
     R_naive = np.corrcoef(samples_extended, rowvar=False)
-    return p, m, s, sk, R_naive
+    # stack the statistical values (p, m, s, sk, median, upper_quantile, lower_quantile)
+    # and return values, R_naive
+    values = np.vstack((p, m, s, sk)).T #, medians, upper_quantile, lower_quantile)).T
+
+    return values, R_naive
 
 def generate_training_data(
     n_dims,
@@ -60,13 +71,16 @@ def generate_training_data(
         theta_true = gen.sparsity_thresholds
 
         samples = gen(n_samples_per_draw)
-        p, m, s, sk, R_naive = compute_naive_stats(samples)
+        values, R_naive = compute_naive_stats(samples)
 
         # per-pair features for corr estimators
         for i in range(n_dims):
             for j in range(n_dims):
                 if i == j:
                     continue
+                #theoretically, we dont need the lower triangle, but since this is training data,
+                #the symmtetric property of the correlation matrix is not known to the model,
+                #so it needs to be represented in the training data.
 
                 # then for each pair i≠j:
                 x = [
@@ -74,10 +88,13 @@ def generate_training_data(
                     R_naive[n_dims+i, n_dims+j],
                     R_naive[n_dims+i, j],
                     R_naive[i, n_dims+j],
-                    p[i], p[j],
-                    m[i], m[j],
-                    s[i], s[j],
-                    sk[i], sk[j],
+                    values[i, 0],  values[j, 0],  # p[i], p[j]
+                    values[i, 1],  values[j, 1],  # m[i], m[j]
+                    values[i, 2],  values[j, 2],  # s[i], s[j]
+                    values[i, 3],  values[j, 3],  # sk[i], sk[j]
+                    #values[i, 4],  values[j, 4],  # median[i], median[j]
+                    #values[i, 5],  values[j, 5],  # upper_quantile[i], upper_quantile[j]
+                    #values[i, 6],  values[j, 6],  # lower_quantile[i], lower_quantile[j]
                 ]
                 x = np.array(x)
                 datasets['corr_bb'].append((x, corr_true[i, j]))
@@ -86,9 +103,7 @@ def generate_training_data(
 
         # per-variable features for mean/std/threshold estimators
         for i in range(n_dims):
-            x = np.array([
-                p[i], m[i], s[i], sk[i]
-            ])
+            x = values[i]
             datasets['mean'].append((x, mu_true[i]))
             datasets['std'].append((x, sigma_true[i]))
             datasets['threshold'].append((x, theta_true[i]))
@@ -101,7 +116,7 @@ if __name__ == "__main__":
     data = generate_training_data(
         n_dims=2,
         n_samples_per_draw=50_000,
-        n_draws=100,
+        n_draws=5000,
         seed=1294
     )
     # The returned data is a dictionary with keys:

@@ -35,6 +35,11 @@ class SparseDataGenerator:
         """
         self.n_dims = n_dims
         self.corr = random_correlation_matrix(n_dims * 2, seed=seed)
+        #zero out self correlation between the values and its own mask
+        for i in range(n_dims):
+            self.corr[i, i + n_dims] = 0.0
+            self.corr[i + n_dims, i] = 0.0
+
         self.nonzero_means = (np.random.rand(n_dims) * 2.0 - 1.0) * 2.0
         self.nonzero_stds = (np.random.rand(n_dims) * 2.0) * 2.0
         self.sparsity_thresholds = (np.random.rand(n_dims) * 2.0 - 1.0) * 2.0
@@ -53,5 +58,7 @@ class SparseDataGenerator:
             size=n_samples
         )
         masks = samples[:, :self.n_dims] > self.sparsity_thresholds
-        values = samples[:, self.n_dims:] * self.nonzero_stds + self.nonzero_means
-        return np.where(masks, values, 0.0)  # replace masked values with 0
+        values = samples[:, self.n_dims:]
+        values = values * self.nonzero_stds + self.nonzero_means
+        values = np.where(masks, values, 0.0)
+        return values  # replace masked values with 0
