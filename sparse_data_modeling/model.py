@@ -47,8 +47,10 @@ class SparseDataModel:
         #data has shape (n_samples, n_dims)
         self.n_samples, self.n_dims = data.shape
 
+
         torch.serialization.add_safe_globals({'MLPRegressor': MLPRegressor})
-        trained_models = torch.load('trained_models.pt', weights_only=False)
+        model_path = os.path.join(os.path.dirname(__file__), 'trained_models.pt')
+        trained_models = torch.load(model_path, weights_only=False)
         self.model_bb = trained_models['corr_bb'].cpu()
         self.model_gb = trained_models['corr_gb'].cpu()
         self.model_gg = trained_models['corr_gg'].cpu()
