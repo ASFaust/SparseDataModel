@@ -45,3 +45,6 @@ synthetic_data = model(n_samples=1000)
 - Stress-testing statistical methods and pipelines under controlled sparsity
 - Generating synthetic medical or sensor data where missingness is structurally dependent on observed variables
 - Estimating uncertainty in downstream models trained on partially observed data
+
+## Future Work
+- Allow imputation of missing values based on learned distributions

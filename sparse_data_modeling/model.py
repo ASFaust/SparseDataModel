@@ -126,7 +126,6 @@ class SparseDataModel:
 
         return values
 
-
 if __name__ == "__main__":
     # Example usage
     np.set_printoptions(precision=4, suppress=True)
