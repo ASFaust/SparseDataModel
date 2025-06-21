@@ -47,7 +47,7 @@ This correction process ensures the generated data's correlation structure is a 
 
 The primary computational cost occurs during model initialization, specifically when finding the nearest valid correlation matrix.
 
-* The time complexity is \$\mathcal{O}(n^3)\$, where \$n\$ is the number of features (i.e., the dimensionality) of the data, and
+* The time complexity is \$\mathcal{O}(n³)\$, where \$n\$ is the number of features (i.e., the dimensionality) of the data, and
 * \$O(m²)\$ in terms of the number of samples, \$m\$, in the input data.
 * Once the model is initialized, generating synthetic samples is very fast.
 
