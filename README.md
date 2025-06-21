@@ -47,8 +47,8 @@ This correction process ensures the generated data's correlation structure is a 
 
 The primary computational cost occurs during model initialization, specifically when finding the nearest valid correlation matrix.
 
-* The time complexity is \$\mathcal{O}(n^3)\$, where \$n\$ is the number of features (i.e., the dimensionality) of the data.
-* The complexity is independent of the number of samples in the input data.
+* The time complexity is \$\mathcal{O}(n^3)\$, where \$n\$ is the number of features (i.e., the dimensionality) of the data, and
+* \$O(m)\$ in terms of the number of samples, \$m\$, in the input data.
 * Once the model is initialized, generating synthetic samples is very fast.
 
 The `nearest_correlation_matrix` function, which dominates initialization time, relies on eigenvalue decomposition (`np.linalg.eigh`), an \$\mathcal{O}(n^3)\$ operation.

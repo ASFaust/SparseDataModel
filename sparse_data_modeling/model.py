@@ -166,9 +166,12 @@ if __name__ == "__main__":
     np.set_printoptions(precision=4, suppress=True)
     from random_model import RandomSparseDataModel
     n_dims = 5
-    n_samples = 100000
+    n_samples = 1000
     model = RandomSparseDataModel(n_dims)
     model.sparsity_thresholds[-1] = -float('inf')  # make the last dimension always on
+    model.nonzero_means[-2] = 4.0
+    model.nonzero_stds[-2] = 1e-13  # very small std to avoid division by zero
+    model.sparsity_thresholds[-2] = 0.0 # 50% chance of being on, but if it is on, it is always 4.0
     data = model(n_samples)
     #data has shape (n_samples, n_dims)
     #we add a constantly 0 dimension to the data
@@ -206,18 +209,7 @@ if __name__ == "__main__":
     print("Frobenius norm of the difference between covariance matrices:")
     print(frobenius_norm)
 
-    #measure KL divergence between the two distributions
-    from scipy.stats import entropy
-    def kl_divergence(p, q):
-        """Compute KL divergence between two distributions."""
-        return np.sum(np.where(p != 0, p * np.log(p / q), 0))
-    p = original_cov.flatten()
-    q = generated_cov.flatten()
-    p = p / np.sum(p)  # normalize to get a probability distribution
-    q = q / np.sum(q)  # normalize to get a probability distribution
-    kl_div = kl_divergence(p, q)
-    print("KL divergence between the two distributions:")
-    print(kl_div)
+
     #measure squared 2-wasserstein distance
     #trace(sigma1 + sigma2 - 2 * sqrt(sqrt(sigma1) * sigma2 * sqrt(sigma1)))
     from scipy.linalg import sqrtm
