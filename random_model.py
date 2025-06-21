@@ -11,8 +11,7 @@ def nearest_correlation_matrix(A):
     corr = D_inv @ ret @ D_inv
     return corr
 
-
-class SparseDataGenerator:
+class RandomSparseDataModel:
     """
     This generator generates data distributed as sparse spike and slab data with random means and probabilities
     """
@@ -39,18 +38,10 @@ class SparseDataGenerator:
                 self.corr[i,i] = 1.0  # ensure diagonal is 1
             #ensure the correlation matrix is positive semi-definite
             self.corr = nearest_correlation_matrix(self.corr)
-        #print(f"Generated correlation matrix:\n{self.corr}")
-
-        #print the just zeroed entries to ensure they are zero
-        #for i in range(n_dims):
-        #    print(f"Zeroed correlation entries: {self.corr[i, i + n_dims]}, {self.corr[i + n_dims, i]}")
-        #    print(f"Diagonal entry: {self.corr[i, i]}")
-        #looks good!
 
         self.nonzero_means = (np.random.rand(n_dims) * 2.0 - 1.0) * 2.0
         self.nonzero_stds = (np.random.rand(n_dims) * 2.0) * 2.0
         self.sparsity_thresholds = (np.random.rand(n_dims) * 2.0 - 1.0) * 2.0
-
 
     def __call__(self, n_samples):
         """
@@ -64,8 +55,8 @@ class SparseDataGenerator:
             cov=self.corr,
             size=n_samples
         )
-        masks = samples[:, :self.n_dims] > self.sparsity_thresholds
-        values = samples[:, self.n_dims:]
+        masks = samples[:, self.n_dims:] > self.sparsity_thresholds
+        values = samples[:, :self.n_dims]
         values = values * self.nonzero_stds + self.nonzero_means
         values = np.where(masks, values, 0.0)
         return values  # replace masked values with 0
