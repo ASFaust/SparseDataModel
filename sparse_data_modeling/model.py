@@ -35,7 +35,14 @@ def nearest_correlation_matrix(A):
     return corr
 
 class SparseDataModel:
-    def __init__(self, data):
+    """
+    A sparse data model
+    """
+    def __init__(self, data : np.array):
+        """
+        Instantiate the model with some given sample data after which to model the distribution
+        :param data: Expected to be of shape (n_samples, n_data_dims)
+        """
         self.data = data
         #data has shape (n_samples, n_dims)
         self.n_samples, self.n_dims = data.shape
