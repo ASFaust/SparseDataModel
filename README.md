@@ -10,7 +10,7 @@ No training is required, the model is initialized directly from a sample dataset
 
 - Learns statistical dependencies between observed values and missingness indicators
 - Supports non-random (MNAR) missingness
-- Corrects empirical correlations with learned regressors
+- Corrects empirical correlations with neural networks 
 - Generates realistic synthetic data matching observed sparsity and correlation patterns
 
 ## Installation
