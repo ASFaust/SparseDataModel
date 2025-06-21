@@ -33,6 +33,7 @@ model = SparseDataModel(sample_data)
 # Generate synthetic data
 synthetic_data = model.generate(num_samples=1000)
 # synthetic_data has shape (1000, num_features)
+# it has the same sparsity and correlation structure as sample_data, with MNAR patterns preserved
 ```
 
 ## Applications
