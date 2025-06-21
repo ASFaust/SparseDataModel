@@ -15,3 +15,9 @@ Thumbs.db
 *.log
 # pickle files
 *.pkl
+# egg info directories
+*.egg-info/
+# distribution directories
+dist/
+# build directories
+build/
