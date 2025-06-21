@@ -3,7 +3,26 @@ import torch
 import torch.nn as nn
 from scipy.stats import norm
 import os
-from .mlp import MLP
+
+class MLP(nn.Module):
+    def __init__(self, input_dim, hidden=32):
+        super().__init__()
+        self.l1 = nn.Linear(input_dim, hidden)
+        self.l2 = nn.Linear(input_dim, hidden)
+        self.l3 = nn.Linear(hidden, hidden)
+        self.l4 = nn.Linear(hidden, hidden)
+        self.out = nn.Linear(hidden, 1)
+        self.sigmoid = nn.Sigmoid()
+        self.tanh = nn.Tanh()
+
+    def forward(self, x):
+        h1 = self.l1(x)
+        h2 = self.l2(x)
+        h3 = h1 / (self.sigmoid(h2) + 1e-7)
+        h4 = self.l3(h3)
+        h5 = self.l4(h4)
+        h6 = h5 / (self.sigmoid(h4) + 1e-7)
+        return self.tanh(self.out(h6))
 
 
 def nearest_correlation_matrix(A):
@@ -30,13 +49,20 @@ class SparseDataModel:
         #data has shape (n_samples, n_dims)
         self.n_samples, self.n_dims = data.shape
 
+        model_path = os.path.join(os.path.dirname(__file__), 'trained_model_weights.pt')
+        state_dicts = torch.load(model_path, map_location='cpu')
 
-        torch.serialization.add_safe_globals({'MLPRegressor': MLP})
-        model_path = os.path.join(os.path.dirname(__file__), 'trained_models.pt')
-        trained_models = torch.load(model_path, weights_only=False)
-        self.model_bb = trained_models['corr_bb'].cpu()
-        self.model_gb = trained_models['corr_gb'].cpu()
-        self.model_gg = trained_models['corr_gg'].cpu()
+        # Instantiate models with correct input dimensions
+        self.model_bb = MLP(input_dim=3)
+        self.model_bb.load_state_dict(state_dicts['corr_bb'])
+
+        self.model_gb = MLP(input_dim=5)
+        self.model_gb.load_state_dict(state_dicts['corr_gb'])
+
+        self.model_gg = MLP(input_dim=6)
+        self.model_gg.load_state_dict(state_dicts['corr_gg'])
+
+        # Set to evaluation mode
         self.model_bb.eval()
         self.model_gb.eval()
         self.model_gg.eval()
