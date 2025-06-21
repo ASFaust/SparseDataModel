@@ -2,6 +2,7 @@ import numpy as np
 import torch
 import torch.nn as nn
 from scipy.stats import norm
+import os
 
 class MLPRegressor(nn.Module):
     def __init__(self, input_dim, hidden=32):
