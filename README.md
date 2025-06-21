@@ -1,8 +1,9 @@
 # SparseDataModel
 
 A generative model for simulating high-dimensional sparse data under complex missingness patterns (including MNAR — Missing Not At Random). 
-This model learns and reproduces both the joint distribution of values and their corresponding missingness structure using corrected 
+This model discovers both the joint distribution of values and their corresponding missingness structure using corrected 
 correlation modeling via neural networks. 
+
 No training is required, the model is initialized directly from a sample dataset and quickly generates synthetic data that matches the observed sparsity and correlation patterns.
 
 ## Features
