@@ -31,7 +31,7 @@ sample_data = ... #sample_data needs to be a numpy array of shape (sample_dim,fe
 # Initialize the model from sample data
 model = SparseDataModel(sample_data)
 # Generate synthetic data
-synthetic_data = model.generate(num_samples=1000)
+synthetic_data = model(n_samples=1000)
 # synthetic_data has shape (1000, num_features)
 # it has the same sparsity and correlation structure as sample_data, with MNAR patterns preserved
 ```
