@@ -26,6 +26,7 @@ pip install -e .
 
 ```python
 from sparse_data_model import SparseDataModel
+sample_data = ... #sample_data needs to be a numpy array of shape (sample_dim,feature_dim)
 # Initialize the model from sample data
 model = SparseDataModel(sample_data)
 # Generate synthetic data
@@ -33,3 +34,12 @@ synthetic_data = model.generate(num_samples=1000)
 # synthetic_data has shape (1000, num_features)
 ```
 
+## Applications
+
+- Sparse CMA-ES (Covariance Matrix Adaptation Evolution Strategy)
+- Simulating datasets with complex missingness patterns for research
+- Benchmarking imputation algorithms under MNAR assumptions
+- Data augmentation for training models robust to missing values
+- Stress-testing statistical methods and pipelines under controlled sparsity
+- Generating synthetic medical or sensor data where missingness is structurally dependent on observed variables
+- Estimating uncertainty in downstream models trained on partially observed data
