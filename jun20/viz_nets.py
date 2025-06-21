@@ -9,7 +9,6 @@ torch.serialization.add_safe_globals({"MLPRegressor": MLPRegressor})
 # Load trained models
 trained_models = torch.load("trained_models.pt", weights_only=False)
 for model in trained_models.values():
-    model.cpu()
     model.eval()
 
 # Load training data
@@ -28,11 +27,8 @@ os.makedirs("sweeps", exist_ok=True)
 
 colors = plt.cm.viridis(np.linspace(0, 1, n_samples))
 
+# Sweep each dimension for each model
 for model_name, model in trained_models.items():
-    # Get sample pool for this model
-    sample_pool = np.array([x for x, _ in training_data[model_name]])
-    input_dim = sample_pool.shape[1]
-
     for dim in range(input_dim):
         plt.figure()
         for sample_idx in range(n_samples):
@@ -59,4 +55,3 @@ for model_name, model in trained_models.items():
         plt.tight_layout()
         plt.savefig(f'sweeps/{model_name}_sweep_dim{dim}.png')
         plt.close()
-
