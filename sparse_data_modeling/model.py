@@ -72,11 +72,18 @@ class SparseDataModel:
         stds = []
         for dim in range(self.n_dims):
             nonzero_data = data[self.mask[:, dim], dim]
-            means.append(nonzero_data.mean())
-            if nonzero_data.size <= 1:
-                stds.append(1.0)
+            if nonzero_data.size == 0:
+                means.append(0.0)
             else:
-                stds.append(nonzero_data.std())
+                means.append(nonzero_data.mean())
+            if nonzero_data.size <= 1:
+                stds.append( 1e-12)  # very small std to avoid division by zero
+            else:
+                std = nonzero_data.std()
+                if np.isnan(std) or std == 0.0:
+                    stds.append( 1e-12)
+                else:
+                    stds.append(std)
 
         self.means = np.array(means)
         self.stds = np.array(stds)
@@ -103,8 +110,7 @@ class SparseDataModel:
                 c_vivj = self.corr_naive[i, j]  # value–value
                 c_vimj = self.corr_naive[i, j + self.n_dims]  # value_i – mask_j
                 c_vjmi = self.corr_naive[j, i + self.n_dims]  # mask_i – value_j
-                c_mimj = self.corr_naive[i + self.n_dims,
-                                         j + self.n_dims]  # mask_i  – mask_j
+                c_mimj = self.corr_naive[i + self.n_dims, j + self.n_dims]  # mask_i  – mask_j
 
                 input_data = torch.tensor([[p_i, p_j, c_mimj]], dtype=torch.float32)
                 c_bb = self.model_bb(input_data).item()
@@ -114,6 +120,24 @@ class SparseDataModel:
                 input_data = torch.tensor([[p_i, p_j, c_vivj, c_vimj, c_mimj]], dtype=torch.float32)
                 self.corr[i, j + self.n_dims] = self.model_gb(input_data).item()
                 self.corr[j + self.n_dims, i] = self.corr[i, j + self.n_dims]  # symmetric part
+
+        for dim in range(self.n_dims):
+            if self.p[dim] == 0.0:
+                self.means[dim] = 0.0
+                self.stds[dim] = 1e-12  # very small std to avoid division by zero
+                self.corr[dim, :] = 0.0
+                self.corr[:, dim] = 0.0
+                self.corr[dim + self.n_dims, :] = 0.0
+                self.corr[:, dim + self.n_dims] = 0.0
+                self.corr[dim, dim] = 1.0
+                self.corr[dim + self.n_dims, dim + self.n_dims] = 1.0
+            elif self.p[dim] == 1.0:
+                # The value is handled fine by the model, but the mask is constant.
+                # Set correlation of the constant mask with everything else to 0.
+                mask_idx = dim + self.n_dims
+                self.corr[mask_idx, :] = 0.0
+                self.corr[:, mask_idx] = 0.0
+                self.corr[mask_idx, mask_idx] = 1.0
 
         #correct the correlation matrix to be positive semi-definite
         self.corr = nearest_correlation_matrix(self.corr)
@@ -141,17 +165,27 @@ if __name__ == "__main__":
     # Example usage
     np.set_printoptions(precision=4, suppress=True)
     from random_model import RandomSparseDataModel
-    n_dims = 4
+    n_dims = 5
     n_samples = 100000
     model = RandomSparseDataModel(n_dims)
+    model.sparsity_thresholds[-1] = -float('inf')  # make the last dimension always on
     data = model(n_samples)
+    #data has shape (n_samples, n_dims)
+    #we add a constantly 0 dimension to the data
+    data = np.hstack((data, np.zeros((n_samples, 1))))  # add a constant dimension
+
     sparse_data_model = SparseDataModel(data)
 
     # give me the original covariance matrix
+    sparse_corr = sparse_data_model.corr
+    # it has shape (n_dims * 2, n_dims * 2)
+    # we need to extend it to ((n_dims + 1) * 2, (n_dims + 1) * 2)
+    # by adding a row and column of zeros
+    #sparse_corr = np.pad(sparse_corr, ((0, 1), (0, 1)), mode='constant', constant_values=0.0)
 
-    abs_diff = np.abs(model.corr - sparse_data_model.corr)
-    print("Absolute difference between correlation matrices:")
-    print(abs_diff.mean())
+    #abs_diff = np.abs(model.corr - sparse_corr)
+    #print("Absolute difference between correlation matrices:")
+    #print(abs_diff.mean())
     # sample some data
     generated_data = sparse_data_model(n_samples)
 
@@ -164,6 +198,36 @@ if __name__ == "__main__":
 
     abs_diff = np.abs(original_cov - generated_cov)
     print("Absolute difference between covariance matrices:")
-    print(abs_diff.mean())
+    print(abs_diff.min(), abs_diff.mean(), abs_diff.max())
 
 
+    #measure frobenius norm of the difference
+    frobenius_norm = np.linalg.norm(original_cov - generated_cov, 'fro')
+    print("Frobenius norm of the difference between covariance matrices:")
+    print(frobenius_norm)
+
+    #measure KL divergence between the two distributions
+    from scipy.stats import entropy
+    def kl_divergence(p, q):
+        """Compute KL divergence between two distributions."""
+        return np.sum(np.where(p != 0, p * np.log(p / q), 0))
+    p = original_cov.flatten()
+    q = generated_cov.flatten()
+    p = p / np.sum(p)  # normalize to get a probability distribution
+    q = q / np.sum(q)  # normalize to get a probability distribution
+    kl_div = kl_divergence(p, q)
+    print("KL divergence between the two distributions:")
+    print(kl_div)
+    #measure squared 2-wasserstein distance
+    #trace(sigma1 + sigma2 - 2 * sqrt(sqrt(sigma1) * sigma2 * sqrt(sigma1)))
+    from scipy.linalg import sqrtm
+    def wasserstein_distance_squared(sigma1, sigma2):
+        """Compute squared 2-Wasserstein distance between two covariance matrices."""
+        sqrt_sigma1 = sqrtm(sigma1)
+        sqrt_sigma2 = sqrtm(sigma2)
+        term = sqrt_sigma1 @ sigma2 @ sqrt_sigma1
+        return np.trace(sigma1 + sigma2 - 2 * sqrtm(term))
+
+    wasserstein_dist_sq = wasserstein_distance_squared(original_cov, generated_cov)
+    print("Squared 2-Wasserstein distance between the two covariance matrices:")
+    print(wasserstein_dist_sq)
