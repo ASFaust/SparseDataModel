@@ -49,7 +49,7 @@ The primary computational cost occurs during model initialization.
 
 The time complexity is approximately:
 
-* \$\O(n³)\$ in terms of the number of features, \$n\$, in the input data, due to the need to compute eigenvalues and eigenvectors for correlation matrices.
+* \$O(n³)\$ in terms of the number of features, \$n\$, in the input data, due to the need to compute eigenvalues and eigenvectors for correlation matrices.
 * \$O(m²)\$ in terms of the number of samples, \$m\$, in the input data, due to the need to compute pairwise correlations. 
 
 Once the model is initialized, generating synthetic samples is very fast.
