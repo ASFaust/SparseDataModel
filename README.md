@@ -45,7 +45,8 @@ This correction process ensures the generated data's correlation structure is a 
 
 ## Performance and Scalability
 
-The primary computational cost occurs during model initialization
+The primary computational cost occurs during model initialization.
+
 The time complexity is approximately:
 
 * \$\mathcal{O}(n³)\$ in terms of the number of features, \$n\$, in the input data, due to the need to compute eigenvalues and eigenvectors for correlation matrices.
