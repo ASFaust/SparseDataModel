@@ -14,6 +14,7 @@ No training is required, the model is initialized directly from a sample dataset
 ## Features
 
 - Learns statistical dependencies between observed values and missingness indicators
+- Works with spike-and-slab priors to model joint distributions
 - Supports non-random (MNAR) missingness
 - Corrects empirical correlations with neural networks 
 - Generates realistic synthetic data matching observed sparsity and correlation patterns
