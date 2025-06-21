@@ -26,7 +26,7 @@ pip install -e .
 ## Usage
 
 ```python
-from sparse_data_model import SparseDataModel
+from sparse_data_modeling import SparseDataModel
 sample_data = ... #sample_data needs to be a numpy array of shape (sample_dim,feature_dim)
 # Initialize the model from sample data
 model = SparseDataModel(sample_data)
