@@ -8,9 +8,7 @@ setup(
     author_email="andreas.s.faust@gmail.com",
     packages=find_packages(),
     install_requires=[
-        "numpy",
-        "scipy",
-        "torch"
+        "numpy"
     ],
     python_requires=">=3.8",
     license="MIT",

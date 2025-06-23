@@ -1,29 +1,8 @@
 import numpy as np
-import torch
-import torch.nn as nn
-from scipy.stats import norm
 import os
 
-class MLP(nn.Module):
-    def __init__(self, input_dim, hidden=32):
-        super().__init__()
-        self.l1 = nn.Linear(input_dim, hidden)
-        self.l2 = nn.Linear(input_dim, hidden)
-        self.l3 = nn.Linear(hidden, hidden)
-        self.l4 = nn.Linear(hidden, hidden)
-        self.out = nn.Linear(hidden, 1)
-        self.sigmoid = nn.Sigmoid()
-        self.tanh = nn.Tanh()
-
-    def forward(self, x):
-        h1 = self.l1(x)
-        h2 = self.l2(x)
-        h3 = h1 / (self.sigmoid(h2) + 1e-7)
-        h4 = self.l3(h3)
-        h5 = self.l4(h4)
-        h6 = h5 / (self.sigmoid(h4) + 1e-7)
-        return self.tanh(self.out(h6))
-
+from .MLP import MLP
+from .norm_ppf import norm_ppf
 
 def nearest_correlation_matrix(A):
     """Returns the nearest symmetric positive semi-definite matrix to A."""
@@ -53,19 +32,11 @@ class SparseDataModel:
         state_dicts = torch.load(model_path, map_location='cpu')
 
         # Instantiate models with correct input dimensions
-        self.model_bb = MLP(input_dim=3)
-        self.model_bb.load_state_dict(state_dicts['corr_bb'])
+        self.model_bb = MLP('corr_bb')
 
-        self.model_gb = MLP(input_dim=5)
-        self.model_gb.load_state_dict(state_dicts['corr_gb'])
+        self.model_gb = MLP('corr_gb')
 
-        self.model_gg = MLP(input_dim=6)
-        self.model_gg.load_state_dict(state_dicts['corr_gg'])
-
-        # Set to evaluation mode
-        self.model_bb.eval()
-        self.model_gb.eval()
-        self.model_gg.eval()
+        self.model_gg = MLP('corr_gg')
 
         self.mask = data != 0.0
         means = []
@@ -96,7 +67,7 @@ class SparseDataModel:
         #fill diagnonal with 1s
         np.fill_diagonal(self.corr_naive, 1.0)
         self.p = self.mask.mean(axis=0)
-        self.thresholds = norm.ppf(1.0 - self.p)
+        self.thresholds = norm_ppf(1.0 - self.p)
         #now we get to the interesting part, we compute the corrected correlation matrix using our models
         self.corr = np.eye(self.n_dims * 2)
         #first we gotta do the binary-binary bit, which is the easiest.
@@ -112,14 +83,16 @@ class SparseDataModel:
                 c_vjmi = self.corr_naive[j, i + self.n_dims]  # mask_i – value_j
                 c_mimj = self.corr_naive[i + self.n_dims, j + self.n_dims]  # mask_i  – mask_j
 
-                input_data = torch.tensor([[p_i, p_j, c_mimj]], dtype=torch.float32)
-                c_bb = self.model_bb(input_data).item()
-                self.corr[i + self.n_dims, j + self.n_dims] = c_bb #!! amazing, first one down!
-                input_data = torch.tensor([[p_i, p_j, c_vivj, c_vimj, c_vjmi, c_mimj]], dtype=torch.float32)
-                self.corr[i, j] = self.model_gg(input_data).item()
-                input_data = torch.tensor([[p_i, p_j, c_vivj, c_vimj, c_mimj]], dtype=torch.float32)
-                self.corr[i, j + self.n_dims] = self.model_gb(input_data).item()
-                self.corr[j + self.n_dims, i] = self.corr[i, j + self.n_dims]  # symmetric part
+                input_data = np.array([[p_i, p_j, c_mimj]], dtype=np.float32)
+                c_bb = self.model_bb.forward(input_data)[0, 0]
+                self.corr[i + self.n_dims, j + self.n_dims] = c_bb
+
+                input_data = np.array([[p_i, p_j, c_vivj, c_vimj, c_vjmi, c_mimj]], dtype=np.float32)
+                self.corr[i, j] = self.model_gg.forward(input_data)[0, 0]
+
+                input_data = np.array([[p_i, p_j, c_vivj, c_vimj, c_mimj]], dtype=np.float32)
+                self.corr[i, j + self.n_dims] = self.model_gb.forward(input_data)[0, 0]
+                self.corr[j + self.n_dims, i] = self.corr[i, j + self.n_dims]
 
         for dim in range(self.n_dims):
             if self.p[dim] == 0.0:
