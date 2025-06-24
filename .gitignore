@@ -23,3 +23,7 @@ dist/
 build/
 # png files
 *.png
+# pt files
+*.pt
+# pkl files
+*.pkl
