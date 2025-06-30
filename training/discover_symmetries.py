@@ -75,11 +75,12 @@ def get_symmetries(latent, eps, sample_size):
     all_observed = []  # Initialize list to hold observed data
     for i,mask in enumerate(masks):
         all_observed.append(get_data(transform(latent, mask), sample_size))
-    target_observed = get_data(transform(latent, masks[0]), sample_size)  # Get the target observed data
+    target_observed = all_observed[0]  # The first mask is the target
     assert target_observed is not None, "The first mask should always yield valid data"
     symmetries = []
     for i, observed in enumerate(all_observed): 
         if observed is None: # Skip if the mask created non-spd matrix
+            #symmetries.append((i, i))  # Identity symmetry
             continue
         for j, mask2 in enumerate(masks):
             transformed_observed = transform(observed, mask2)
@@ -155,3 +156,70 @@ np.set_printoptions(precision=3, suppress=True)
 
 find_symmetries(n_trials=100, eps=0.2, sample_size=10000)
 
+"""
+
+Results:
+Trial 100/100Symmetries found (mask index, count):
+(0, 0): 100 occurrences, 
+observed gets transformed this way:
+a *= 1.0, b *= 1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:
+a *= 1.0, b *= 1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(3, 3): 100 occurrences, 
+observed gets transformed this way:
+a *= -1.0, b *= -1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:
+a *= -1.0, b *= -1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(5, 5): 100 occurrences, 
+observed gets transformed this way:
+a *= -1.0, b *= 1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:
+a *= -1.0, b *= 1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(6, 6): 100 occurrences, 
+observed gets transformed this way:
+a *= 1.0, b *= -1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:
+a *= 1.0, b *= -1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+
+-> there are 4 symmetries in the data, which are:
+1. No transformation (identity)
+2. Flip a and b (i.e., a *= -1, b *= -1
+3. Flip a and c (i.e., a *= -1, c *= -1)
+4. Flip b and c (i.e., b *= -1, c *= -1
+These transformations are consistent across all trials, indicating that the transformed matrices are always also SPD
+interestingly, no transformation was found that flips d, the binary-binary correlation
+this could either be due to non-SPD-ness of the flipped matrices, or that there is truly no symmetry in d
+
+Additional results, if we uncomment the identity symmetry line (allowing symmetries that result in non-SPD matrices):
+--------------------------------------------------
+(1, 1): 94 occurrences,            
+observed gets transformed this way:                                                            
+a *= -1.0, b *= 1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:      
+a *= -1.0, b *= 1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(4, 4): 94 occurrences,            
+observed gets transformed this way:                                                            
+a *= 1.0, b *= 1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:      
+a *= 1.0, b *= 1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(7, 7): 93 occurrences,            
+observed gets transformed this way:                                                            
+a *= -1.0, b *= -1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:        
+a *= -1.0, b *= -1.0, c *= -1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------
+(2, 2): 92 occurrences,            
+observed gets transformed this way:                                                            
+a *= 1.0, b *= -1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+and the resulting latent gets transformed this way:      
+a *= 1.0, b *= -1.0, c *= 1.0, d *= 1.0, p1 = p1, p2 = p2
+--------------------------------------------------              
+-> this completes all possible combinations of flipping a, b, and c
+but not d! this means that d is not symmetric in any way.
+"""
