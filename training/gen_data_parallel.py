@@ -86,7 +86,10 @@ def merge_results(result_list):
     return merged
 
 if __name__ == '__main__':
-    with Pool(cpu_count()) as pool:
+    n_cpus = cpu_count()
+    n_cpus = min(n_cpus, 16)  # Limit to 16 CPUs for performance reasons
+    print(f"Using {n_cpus} CPUs for processing.")
+    with Pool(n_cpus) as pool:
         all_results = list(tqdm(pool.imap_unordered(process_abcd, random_abcd_samples),
                                 total=len(random_abcd_samples),
                                 desc="Processing"))
