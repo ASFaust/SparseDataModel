@@ -5,17 +5,20 @@ import torch
 
 # Example usage
 np.set_printoptions(precision=4, suppress=True)
-n_dims = 5
-n_samples = 1000
+n_dims = 2
+n_samples = 100000
 model = RandomSparseDataModel(n_dims)
-model.sparsity_thresholds[-1] = -float('inf')  # make the last dimension always on
-model.nonzero_means[-2] = 4.0
-model.nonzero_stds[-2] = 1e-13  # very small std to avoid division by zero
-model.sparsity_thresholds[-2] = 0.0 # 50% chance of being on, but if it is on, it is always 4.0
+print(model.corr)
+#model.sparsity_thresholds[-1] = -float('inf')  # make the last dimension always on
+#model.sparsity_thresholds[-2] = float('inf')  # make the second last dimension always off
+#model.nonzero_means[-2] = 4.0
+#model.nonzero_stds[-2] = 1e-13  # very small std to avoid division by zero
+#model.sparsity_thresholds[-2] = 0.0 # 50% chance of being on, but if it is on, it is always 4.0
+print(model.sparsity_thresholds)
 data = model(n_samples)
 #data has shape (n_samples, n_dims)
 #we add a constantly 0 dimension to the data
-data = np.hstack((data, np.zeros((n_samples, 1))))  # add a constant dimension
+#data = np.hstack((data, np.zeros((n_samples, 1))))  # add a constant dimension
 
 sparse_data_model = SparseDataModel(data)
 
@@ -32,6 +35,7 @@ sparse_corr = sparse_data_model.corr
 # sample some data
 generated_data = sparse_data_model(n_samples)
 
+
 original_cov = np.cov(data, rowvar=False)
 generated_cov = np.cov(generated_data, rowvar=False)
 print("Original covariance matrix:")
@@ -40,7 +44,7 @@ print("Generated covariance matrix:")
 print(generated_cov)
 
 abs_diff = np.abs(original_cov - generated_cov)
-print("Absolute difference between covariance matrices:")
+print("Absolute difference between covariance matrices (min, mean, max):")
 print(abs_diff.min(), abs_diff.mean(), abs_diff.max())
 
 

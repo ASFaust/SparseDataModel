@@ -87,13 +87,14 @@ def norm_ppf(p: np.ndarray | float) -> np.ndarray | float:
         return float(z)
     return z
 
+
 if __name__ == "__main__":
     # Example usage
     p_values = [0.01, 0.5, 0.99, 0.9999]
-    results = norm_ppf_accurate(p_values)
+    results = norm_ppf(p_values)
     print("p-values:", p_values)
     print("Quantiles:", results)
 
     # Test edge cases
-    print("Quantile for p=0:", norm_ppf_accurate(0))  # should be -inf
-    print("Quantile for p=1:", norm_ppf_accurate(1))  # should be inf
+    print("Quantile for p=0:", norm_ppf(0))  # should be -inf
+    print("Quantile for p=1:", norm_ppf(1))  # should be inf

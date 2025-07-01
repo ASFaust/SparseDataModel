@@ -16,14 +16,12 @@ class MLP(nn.Module):
 
         self.out = nn.Linear(hidden, 1)
         self.sigmoid = nn.Sigmoid()
-        self.elu = nn.ELU()
+        self.softplus = nn.Softplus()
         self.tanh = nn.Tanh()
-        self.c1 = nn.Parameter(torch.tensor(0.0, dtype=torch.float32), requires_grad=True)
-        self.c2 = nn.Parameter(torch.tensor(0.0, dtype=torch.float32), requires_grad=True)
 
     def forward(self, x):
-        h1 = self.l1(x) / (self.elu(self.l2(x)) + 1.000001 + torch.abs(self.c1))
-        h2 = self.l3(h1) / (self.elu(self.l4(h1)) + 1.000001 + torch.abs(self.c2))
+        h1 = self.l1(x) / (self.softplus(self.l2(x)) + 0.1)
+        h2 = self.l3(h1) / (self.softplus(self.l4(h1)) + 0.1)
         return self.tanh(self.out(h2))
 
 def train_model(name, dataset, input_dim, epochs=1000, batch_size=128, device="cuda"):
@@ -91,7 +89,7 @@ if __name__ == "__main__":
         data = pickle.load(f)
 
     n_epochs = {
-        "corr_bb": 1000,
+        "corr_bb": 1200,
         "corr_gg": 250,
         "corr_gb": 250,
     }
@@ -106,7 +104,6 @@ if __name__ == "__main__":
         # calculate polynomial feature dimension: original + (n_features * (n_features + 1)) / 2
         #dim = int(dim + dim * (dim + 1) / 2)
         trained_models[key] = train_model(key, data[key], input_dim=dim, device=device, epochs=n_epochs[key])
-        #print c1 and c2 parameters
-        print(f"{key} model trained with input dimension {dim}. c1: {trained_models[key].c1.item()}, c2: {trained_models[key].c2.item()}")
+        print(f"\n{key} model trained with input dimension {dim}.")
 
     torch.save(trained_models, 'trained_models.pt')
