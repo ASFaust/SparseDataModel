@@ -2,7 +2,7 @@ import numpy as np
 import os
 
 from .MLP import MLP
-from .norm_ppf import norm_ppf
+from scipy.stats import norm
 
 
 def nearest_correlation_matrix(A):
@@ -84,13 +84,45 @@ class SparseDataModel:
         corr = np.nan_to_num(corr, nan=0.0)
         np.fill_diagonal(corr, 1.0)
         return corr
+    
+    @property
+    def degenerate_dims(self):
+        """
+        Returns the set of indices in the correlation matrix that correspond to degenerate dimensions:
+        - Value dims (0 .. n_dims-1) with std <= eps
+        - Mask dims (n_dims .. 2*n_dims-1) with p == 0.0
+        """
+        eps = 1e-12
+        deg_value = [i for i in range(self.n_dims) if self.stds[i] <= eps]
+        deg_mask = [i + self.n_dims for i in range(self.n_dims) if self.p[i] == 0.0]
+        return set(deg_value + deg_mask)
+    
+
+    def get_analysis_corr(self, project_psd=False):
+        """
+        Returns a cleaned correlation matrix for analysis, zeroing out degenerate dimensions
+        as identified by self.degenerate_dims.
+
+        :param project_psd: If True, project the cleaned matrix back to the nearest PSD matrix.
+        :return: A cleaned correlation matrix.
+        """
+        corr = self.corr.copy()
+        for i in self.degenerate_dims:
+            corr[i, :] = 0.0
+            corr[:, i] = 0.0
+            corr[i, i] = 0.0
+
+        if project_psd:
+            corr = nearest_correlation_matrix(corr)
+
+        return corr
 
     def _compute_thresholds(self):
         """
         Computes the probability of non-zero values (p) and the corresponding Gaussian thresholds.
         """
         p = self.mask.mean(axis=0)
-        thresholds = norm_ppf(1.0 - p)
+        thresholds = norm.ppf(1.0 - p)
         return p, thresholds
 
     def _compute_corrected_correlation(self, naive_corr):
@@ -184,3 +216,4 @@ class SparseDataModel:
         values = np.where(masks, values, 0.0)
 
         return values
+    
