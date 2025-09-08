@@ -22,14 +22,21 @@ class SparseDataModel:
     A sparse data model that learns a distribution from data with missing values.
     """
 
-    def __init__(self, data: np.array):
+    def __init__(self, data: np.array, prob_eps = 0.01, diagonal_lambda = 0.1, std_floor = 0.1):
         """
         Instantiate and fit the model based on the given sample data.
 
         :param data: A numpy array of shape (n_samples, n_data_dims) with missing values represented as 0.0.
+        :param prob_eps: A small epsilon value to avoid probabilities of exactly 0 or 1 for the masking.
+        :param diagonal_lambda: Regularization parameter for the diagonal of the correlation matrix to prevent premature convergence.
+        :param std_floor: Minimum standard deviation for any dimension to ensure exploration.
+
         """
         # --- Basic Setup ---
         self.data = data
+        self.prob_eps = prob_eps
+        self.diagonal_lambda = diagonal_lambda
+        self.std_floor = std_floor
         self.n_samples, self.n_dims = data.shape
         self.mask = (self.data != 0.0).astype(np.float32)
 
@@ -62,14 +69,14 @@ class SparseDataModel:
 
             if nonzero_data.size == 0:
                 means.append(0.0)
-                stds.append(1e-12)  # Default for empty data
+                stds.append(self.std_floor)  # Default std to ensure exploration
             elif nonzero_data.size == 1:
                 means.append(nonzero_data.mean())
-                stds.append(1e-12)  # Small std to avoid division by zero
+                stds.append(self.std_floor)
             else:
                 means.append(nonzero_data.mean())
                 std = nonzero_data.std()
-                stds.append(std if std > 1e-12 else 1e-12)
+                stds.append(std if std > self.std_floor else self.std_floor)
 
         return np.array(means), np.array(stds)
 
@@ -122,6 +129,7 @@ class SparseDataModel:
         Computes the probability of non-zero values (p) and the corresponding Gaussian thresholds.
         """
         p = self.mask.mean(axis=0)
+        p = np.clip(p, self.prob_eps, 1.0 - self.prob_eps)
         thresholds = norm.ppf(1.0 - p)
         return p, thresholds
 
@@ -192,9 +200,8 @@ class SparseDataModel:
                 self.corr[mask_idx, mask_idx] = 1.0
 
     def _ensure_positive_semidefinite(self):
-        """
-        Ensures the final correlation matrix is symmetric and positive semi-definite.
-        """
+        # Diagonal shrinkage
+        self.corr = (1.0 - self.diagonal_lambda) * self.corr + self.diagonal_lambda * np.eye(self.corr.shape[0])
         self.corr = nearest_correlation_matrix(self.corr)
 
     def __call__(self, n_samples):
