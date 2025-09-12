@@ -202,28 +202,26 @@ class SparseDataModel:
     def _ensure_positive_semidefinite(self):
         # Diagonal shrinkage
         self.corr = (1.0 - self.diagonal_lambda) * self.corr + self.diagonal_lambda * np.eye(self.corr.shape[0])
-        # Ensure 0s at the correct places:
+
+        # Ensure 0s and 1s at the correct places
         for i in range(self.n_dims):
             self.corr[i, i + self.n_dims] = 0.0
             self.corr[i + self.n_dims, i] = 0.0
             self.corr[i, i] = 1.0
             self.corr[i + self.n_dims, i + self.n_dims] = 1.0
-        #self.corr = nearest_correlation_matrix(self.corr)
 
         # --- Empirical correction of off-diagonal shrinkage (quadratic in ln n) ---
-        #def _slope_quadratic_log(n: int) -> float:
-        #    # coefficients from weighted fit on your measurements
-        #    b0 = 0.985488
-        #    b1 = 0.020231
-        #    b2 = -0.008183
-        #    ln = np.log(float(max(n, 2)))
-        #    return b0 + b1 * ln + b2 * (ln ** 2)
+        def _slope_quadratic_log(n: int) -> float:
+            # coefficients from fit: slope ≈ a (ln n)^2 + b ln n + c
+            a, b, c = -0.0069544, 0.01370068, 0.9902399
+            ln = np.log(float(max(n, 2)))
+            return a * (ln ** 2) + b * ln + c
 
-        #slope = _slope_quadratic_log(self.n_dims)
-        #if np.isfinite(slope) and slope > 1e-8:
-        ##    scale = 1.0 / slope
-        #    off_mask = ~np.eye(self.corr.shape[0], dtype=bool)
-        #    self.corr[off_mask] *= scale
+        slope = _slope_quadratic_log(self.n_dims)
+        if np.isfinite(slope) and slope > 1e-8:
+            scale = 1.0 / slope
+            off_mask = ~np.eye(self.corr.shape[0], dtype=bool)
+            self.corr[off_mask] *= scale
 
         # Re-project to correlation matrix after rescaling
         self.corr = nearest_correlation_matrix(self.corr)
