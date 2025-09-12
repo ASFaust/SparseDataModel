@@ -17,16 +17,17 @@ def nearest_correlation_matrix(A):
     return corr
 
 
-class SparseDataModel:
+class WeightedSparseDataModel:
     """
     A sparse data model that learns a distribution from data with missing values.
     """
 
-    def __init__(self, data: np.array, prob_eps = 0.00, diagonal_lambda = 0.0, std_floor = 1e-12):
+    def __init__(self, data: np.array, weights:np.array, prob_eps=0.01, diagonal_lambda=0.1, std_floor=0.1):
         """
         Instantiate and fit the model based on the given sample data.
 
         :param data: A numpy array of shape (n_samples, n_data_dims) with missing values represented as 0.0.
+        :param weights: A numpy array of shape (n_samples), giving weight to each sample
         :param prob_eps: A small epsilon value to avoid probabilities of exactly 0 or 1 for the masking.
         :param diagonal_lambda: Regularization parameter for the diagonal of the correlation matrix to prevent premature convergence.
         :param std_floor: Minimum standard deviation for any dimension to ensure exploration.
@@ -34,6 +35,7 @@ class SparseDataModel:
         """
         # --- Basic Setup ---
         self.data = data
+        self.weights = weights
         self.prob_eps = prob_eps
         self.diagonal_lambda = diagonal_lambda
         self.std_floor = std_floor
@@ -46,7 +48,7 @@ class SparseDataModel:
         self.p, self.thresholds = self._compute_thresholds()
         naive_corr = self._compute_naive_correlation()
 
-        #and in this step we can also use the symmetries we discovered
+        # and in this step we can also use the symmetries we discovered
         self.corr = self._compute_corrected_correlation(naive_corr)
 
         self._handle_correlation_edge_cases()
@@ -66,6 +68,7 @@ class SparseDataModel:
         stds = []
         for dim in range(self.n_dims):
             nonzero_data = self.data[self.mask[:, dim].astype(bool), dim]
+            nonzero_weights = self.weights[self.mask[:,dim].astype(bool)]
 
             if nonzero_data.size == 0:
                 means.append(0.0)
@@ -74,6 +77,7 @@ class SparseDataModel:
                 means.append(nonzero_data.mean())
                 stds.append(self.std_floor)
             else:
+                #TODO: weigh mean and std by weights
                 means.append(nonzero_data.mean())
                 std = nonzero_data.std()
                 stds.append(std if std > self.std_floor else self.std_floor)
@@ -91,7 +95,7 @@ class SparseDataModel:
         corr = np.nan_to_num(corr, nan=0.0)
         np.fill_diagonal(corr, 1.0)
         return corr
-    
+
     @property
     def degenerate_dims(self):
         """
@@ -103,7 +107,6 @@ class SparseDataModel:
         deg_value = [i for i in range(self.n_dims) if self.stds[i] <= eps]
         deg_mask = [i + self.n_dims for i in range(self.n_dims) if self.p[i] == 0.0]
         return set(deg_value + deg_mask)
-    
 
     def get_analysis_corr(self, project_psd=False):
         """
@@ -128,6 +131,7 @@ class SparseDataModel:
         """
         Computes the probability of non-zero values (p) and the corresponding Gaussian thresholds.
         """
+        #TODO: use weights to determine the thresholds by weighing the mask before computing p
         p = self.mask.mean(axis=0)
         p = np.clip(p, self.prob_eps, 1.0 - self.prob_eps)
         thresholds = norm.ppf(1.0 - p)
@@ -202,30 +206,6 @@ class SparseDataModel:
     def _ensure_positive_semidefinite(self):
         # Diagonal shrinkage
         self.corr = (1.0 - self.diagonal_lambda) * self.corr + self.diagonal_lambda * np.eye(self.corr.shape[0])
-        # Ensure 0s at the correct places:
-        for i in range(self.n_dims):
-            self.corr[i, i + self.n_dims] = 0.0
-            self.corr[i + self.n_dims, i] = 0.0
-            self.corr[i, i] = 1.0
-            self.corr[i + self.n_dims, i + self.n_dims] = 1.0
-        #self.corr = nearest_correlation_matrix(self.corr)
-
-        # --- Empirical correction of off-diagonal shrinkage (quadratic in ln n) ---
-        #def _slope_quadratic_log(n: int) -> float:
-        #    # coefficients from weighted fit on your measurements
-        #    b0 = 0.985488
-        #    b1 = 0.020231
-        #    b2 = -0.008183
-        #    ln = np.log(float(max(n, 2)))
-        #    return b0 + b1 * ln + b2 * (ln ** 2)
-
-        #slope = _slope_quadratic_log(self.n_dims)
-        #if np.isfinite(slope) and slope > 1e-8:
-        ##    scale = 1.0 / slope
-        #    off_mask = ~np.eye(self.corr.shape[0], dtype=bool)
-        #    self.corr[off_mask] *= scale
-
-        # Re-project to correlation matrix after rescaling
         self.corr = nearest_correlation_matrix(self.corr)
 
     def __call__(self, n_samples):
@@ -247,4 +227,3 @@ class SparseDataModel:
         values = np.where(masks, values, 0.0)
 
         return values
-    
