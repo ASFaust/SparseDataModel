@@ -203,17 +203,21 @@ class SparseDataModel:
         # Diagonal shrinkage
         self.corr = (1.0 - self.diagonal_lambda) * self.corr + self.diagonal_lambda * np.eye(self.corr.shape[0])
 
-        # Ensure 0s and 1s at the correct places
-        for i in range(self.n_dims):
-            self.corr[i, i + self.n_dims] = 0.0
-            self.corr[i + self.n_dims, i] = 0.0
-            self.corr[i, i] = 1.0
-            self.corr[i + self.n_dims, i + self.n_dims] = 1.0
+        # Iterative refinement to enforce PSD and constraints
+        for k in range(10):
+            # Ensure 0s and 1s at the correct places
+            for i in range(self.n_dims):
+                self.corr[i, i + self.n_dims] = 0.0
+                self.corr[i + self.n_dims, i] = 0.0
+                self.corr[i, i] = 1.0
+                self.corr[i + self.n_dims, i + self.n_dims] = 1.0
+
+            self.corr = nearest_correlation_matrix(self.corr)
 
         # --- Empirical correction of off-diagonal shrinkage (quadratic in ln n) ---
         def _slope_quadratic_log(n: int) -> float:
-            # coefficients from fit: slope ≈ a (ln n)^2 + b ln n + c
-            a, b, c = -0.0069544, 0.01370068, 0.9902399
+            # coefficients from your fit: slope ≈ a (ln n)^2 + b ln n + c
+            a, b, c = -0.008225, 0.022209, 0.972306
             ln = np.log(float(max(n, 2)))
             return a * (ln ** 2) + b * ln + c
 
