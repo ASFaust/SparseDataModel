@@ -90,11 +90,15 @@ class SparseDataModel:
         """
         Returns the set of indices in the correlation matrix that correspond to degenerate dimensions:
         - Value dims (0 .. n_dims-1) with std <= eps
-        - Mask dims (n_dims .. 2*n_dims-1) with p == 0.0
+        - Mask dims (n_dims .. 2*n_dims-1) with p == 0.0 or p == 1.0
         """
         eps = 1e-12
         deg_value = [i for i in range(self.n_dims) if self.stds[i] <= eps]
-        deg_mask = [i + self.n_dims for i in range(self.n_dims) if self.p[i] == 0.0]
+        deg_mask = [
+            i + self.n_dims
+            for i in range(self.n_dims)
+            if self.p[i] == 0.0 or self.p[i] == 1.0
+        ]
         return set(deg_value + deg_mask)
     
 
