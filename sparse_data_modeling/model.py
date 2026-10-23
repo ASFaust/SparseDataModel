@@ -39,6 +39,7 @@ class SparseDataModel:
         self.std_floor = std_floor
         self.n_samples, self.n_dims = data.shape
         self.mask = (self.data != 0.0).astype(np.float32)
+        self._degenerate = self._find_degenerate_dims()
 
         # --- Model Initialization and Computation Steps ---
         self._initialize_models()
@@ -57,6 +58,24 @@ class SparseDataModel:
         self.model_bb = MLP('corr_bb')
         self.model_gb = MLP('corr_gb')
         self.model_gg = MLP('corr_gg')
+
+    def _find_degenerate_dims(self):
+        """
+        Flags the latent dimensions that carry no correlation information in the data.
+        This is decided on the raw data, before prob_eps / std_floor regularization:
+        - Value dims whose non-zero entries have no spread (none, a single one, or all equal).
+        - Mask dims whose mask is constant (column all zero or all non-zero).
+
+        :return: A boolean array of shape (2 * n_dims,).
+        """
+        deg_value = np.zeros(self.n_dims, dtype=bool)
+        for dim in range(self.n_dims):
+            nonzero_data = self.data[self.mask[:, dim].astype(bool), dim]
+            deg_value[dim] = nonzero_data.size < 2 or nonzero_data.min() == nonzero_data.max()
+
+        p = self.mask.mean(axis=0)
+        deg_mask = (p == 0.0) | (p == 1.0)
+        return np.concatenate((deg_value, deg_mask))
 
     def _calculate_statistics(self):
         """
@@ -87,22 +106,21 @@ class SparseDataModel:
         normalized_data = np.where(self.mask.astype(bool), (self.data - self.means) / self.stds, 0.0)
         extended_data = np.concatenate((normalized_data, self.mask), axis=1)
 
-        corr = np.corrcoef(extended_data, rowvar=False)
+        # constant columns have zero variance; their nan correlations are set to 0 below
+        with np.errstate(invalid='ignore', divide='ignore'):
+            corr = np.corrcoef(extended_data, rowvar=False)
         corr = np.nan_to_num(corr, nan=0.0)
         np.fill_diagonal(corr, 1.0)
         return corr
-    
+
     @property
     def degenerate_dims(self):
         """
         Returns the set of indices in the correlation matrix that correspond to degenerate dimensions:
-        - Value dims (0 .. n_dims-1) with std <= eps
-        - Mask dims (n_dims .. 2*n_dims-1) with p == 0.0
+        - Value dims (0 .. n_dims-1) whose non-zero entries have no spread
+        - Mask dims (n_dims .. 2*n_dims-1) whose column is all zero or all non-zero
         """
-        eps = 1e-12
-        deg_value = [i for i in range(self.n_dims) if self.stds[i] <= eps]
-        deg_mask = [i + self.n_dims for i in range(self.n_dims) if self.p[i] == 0.0]
-        return set(deg_value + deg_mask)
+        return set(np.flatnonzero(self._degenerate).tolist())
     
 
     def get_analysis_corr(self, project_psd=False):
@@ -180,24 +198,14 @@ class SparseDataModel:
 
     def _handle_correlation_edge_cases(self):
         """
-        Post-processes the correlation matrix to handle columns that are all-zero or all-nonzero.
+        Post-processes the correlation matrix to decouple degenerate dimensions (see degenerate_dims).
+        The data says nothing about their correlations, and the MLPs are not trained on p == 0 / p == 1
+        inputs, so they are set to be uncorrelated with everything else.
         """
-        for dim in range(self.n_dims):
-            # Handle columns that are completely empty (all zero)
-            if self.p[dim] == 0.0:
-                self.corr[dim, :] = 0.0
-                self.corr[:, dim] = 0.0
-                self.corr[dim + self.n_dims, :] = 0.0
-                self.corr[:, dim + self.n_dims] = 0.0
-                self.corr[dim, dim] = 1.0
-                self.corr[dim + self.n_dims, dim + self.n_dims] = 1.0
-            # Handle columns that are completely full (no zeros)
-            elif self.p[dim] == 1.0:
-                # The mask is constant, so its correlation with everything else should be 0.
-                mask_idx = dim + self.n_dims
-                self.corr[mask_idx, :] = 0.0
-                self.corr[:, mask_idx] = 0.0
-                self.corr[mask_idx, mask_idx] = 1.0
+        for i in np.flatnonzero(self._degenerate):
+            self.corr[i, :] = 0.0
+            self.corr[:, i] = 0.0
+            self.corr[i, i] = 1.0
 
     def _ensure_positive_semidefinite(self):
         # Diagonal shrinkage
@@ -215,13 +223,16 @@ class SparseDataModel:
             self.corr = nearest_correlation_matrix(self.corr)
 
         # --- Empirical correction of off-diagonal shrinkage (quadratic in ln n) ---
-        def _slope_quadratic_log(n: int) -> float:
+        def _slope_quadratic_log(n: float) -> float:
             # coefficients from your fit: slope ≈ a (ln n)^2 + b ln n + c
             a, b, c = -0.008225, 0.022209, 0.972306
             ln = np.log(float(max(n, 2)))
             return a * (ln ** 2) + b * ln + c
 
-        slope = _slope_quadratic_log(self.n_dims)
+        # degenerate dims are decoupled and do not contribute to the shrinkage,
+        # so only count the informative latent dims (2 per data dim in the fit)
+        n_effective = np.count_nonzero(~self._degenerate) / 2.0
+        slope = _slope_quadratic_log(n_effective)
         if np.isfinite(slope) and slope > 1e-8:
             scale = 1.0 / slope
             off_mask = ~np.eye(self.corr.shape[0], dtype=bool)

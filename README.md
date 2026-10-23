@@ -70,6 +70,22 @@ allowing the reconstruction of the original continuous correlation structure fro
 
 ---
 
+## Mixed Column Types
+
+Columns do not all need to be zero-inflated. The model handles, within the same data set:
+
+* zero-inflated columns (spike and slab),
+* dense columns without any zeros,
+* columns that are always zero,
+* columns that are either zero or a single constant,
+* constant columns without zeros.
+
+Latent dimensions that carry no correlation information (a mask that is always on or always off, or non-zero values without
+any spread) are listed in `model.degenerate_dims` and are decoupled from all other dimensions. Adding such columns
+does not change the correlations estimated for the remaining ones.
+
+---
+
 ## Limitations
 
 
@@ -105,7 +121,7 @@ Once the model is initialized, generating synthetic samples is very fast.
 
 ## Requirements
 
-This package requires Python 3.8 or higher and `numpy` for numerical operations. Nothing else is needed to run the model.
+This package requires Python 3.8 or higher, `numpy` for numerical operations and `scipy` for the normal quantile function. Nothing else is needed to run the model.
 
 If you wish to train your own neural networks for the correction step, you will also need `torch`.
 
@@ -149,6 +165,18 @@ synthetic_data = model(n_samples=1000)
 # synthetic_data has shape (1000, n_features)
 # It shares the same MNAR patterns and correlation structure as sample_data.
 ```
+
+---
+
+## Tests
+
+```bash
+pip install pytest
+pytest
+```
+
+`tests/test_mixed_data.py` checks fitting and sampling on data with mixed column types, and
+`tests/test_optimization.py` uses the model in a simple EDA on test functions with a sparsity penalty.
 
 ---
 

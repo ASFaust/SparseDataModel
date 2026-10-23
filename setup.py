@@ -8,7 +8,8 @@ setup(
     author_email="andreas.s.faust@gmail.com",
     packages=find_packages(),
     install_requires=[
-        "numpy"
+        "numpy",
+        "scipy",
     ],
     python_requires=">=3.8",
     license="MIT",

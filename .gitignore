@@ -3,6 +3,9 @@
 __pycache__/
 # pycharm + jetbrains stuff
 .idea/
+# virtual environments
+.venv/
+venv/
 # vscode stuff
 .vscode/
 # macOS stuff
@@ -25,5 +28,3 @@ build/
 *.png
 # pt files
 *.pt
-# pkl files
-*.pkl
